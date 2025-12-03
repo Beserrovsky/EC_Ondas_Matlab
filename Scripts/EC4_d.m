@@ -1,5 +1,5 @@
 % VARIABLES.
-theta1_deg = 40;
+theta1_deg = 60;
 
 % Medium Constraints
 u0 = 4*pi*10^(-7);
@@ -35,26 +35,20 @@ beta_z2 = k2 * cos(theta2_rad);
 z = -20:1:10;
 Nz = numel(z);
 
-H3 = zeros(3, 1, Nz); 
-
-H_z0 = [0; H_y1 * (1 - rho0); 0];
-
-H = zeros(size(H_z0)); 
+Hy = zeros(Nz, 1); 
 
 for iz = 1:Nz
-    x = tand(theta1_deg) * z;
+    
+    x = tand(theta1_deg) * z(iz);
 
     % compute components depending on z(iz)
-    Hx = 0;
-    if (z < 0 )
-        Hy = H_y1 * exp(-1i*beta_x1*x)*(exp(-1i*beta_z1*z) - rho0*exp(1i*beta_z1*z));
+    if (z(iz) < 0 )
+        Hy(iz) = H_y1 * exp(-1i*beta_x1*x)*(exp(-1i*beta_z1*z) - rho0*exp(1i*beta_z1*z));
     end
-    if (z > 0 )
-        Hy = (1 - rho0) * H_y1 * exp(-1i*beta_x1*x)* exp(-1i*beta_z2*z);
+    if (z(iz) > 0 )
+        Hy(iz) = (1 - rho0) * H_y1 * exp(-1i*beta_x1*x)* exp(-1i*beta_z2*z);
     end
-    if (z == 0)
-        Hy = H_y1 * (1 - rho0);
+    if (z(iz) == 0)
+        Hy(iz) = H_y1 * (1 - rho0);
     end
-    Hz = 0;
-    H3(:,1,iz) = [Hx; Hy; Hz];
 end
