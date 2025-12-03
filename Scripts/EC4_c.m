@@ -1,173 +1,124 @@
-% VARIABLES.
-theta1_deg = 40;
+% Poynting-z vs theta1 (incident, reflected, transmitted)
+clear; clc; close all;
 
-% Medium Constraints
-u0 = 4*pi*10^(-7);
-e0 = 8.854*10^(-12);
+% -------------------------
+% Media and wave parameters
+% -------------------------
+u0 = 4*pi*1e-7;
+e0 = 8.854e-12;
 
-u1 = u0;
-e1 = 3.702*e0;
+u1 = u0;        e1 = 3.702*e0;    % medium 1 (dielectric)
+u2 = u0;        e2 = e0;          % medium 2 (air)
 
-u2 = u0;
-e2 = e0;
+% intrinsic impedances (SI)
+eta1 = sqrt(u1 / e1);
+eta2 = sqrt(u2 / e2);
 
-% Wave params
-f = 10^9; % frequency [Hz]
+% refractive indices (for Brewster/ Snell)
+n1_refr = sqrt(e1 / e0);
+n2_refr = sqrt(e2 / e0);
 
-% Incidency Angles
-theta1_rad = deg2rad(theta1_deg);
+H0 = 1; % incident magnitude
 
-theta2_deg = getTransmittedAngle(theta1_deg, e1, e2);
-theta2_rad = deg2rad(theta2_deg);
+% angle vector
+theta1_deg = 0:0.1:90;
+N = numel(theta1_deg);
 
-% Electric and Magnetic Vectors
-    % (SI units) x; y; z; --> Complex values in each slot.
+% preallocate
+Sz_inc = zeros(1,N);
+Sz_ref = zeros(1,N);
+Sz_tr  = zeros(1,N);
 
-H_y1 = 1e-3;
+for k = 1:N
+    th1 = deg2rad(theta1_deg(k));
+    cos1 = cos(th1);
 
-% !!! Onda incidente!!! 
-%
-% H_1Plus = [0; H_y1 * (1 - rho0); 0];       % A/m < -- Given with y+
-% E_1Plus = [0; 0; 0];       % V/m
-% N_1Plus = [0; 0; 0];       % W/m^2
-%
-H_1Plus = [0; H_y1 * (1 - rho0); 0];
-E_1Plus = zeros(size(H_1Plus)); 
-%N_1Plus = zeros(size(H_1Plus)); 
+    % Snell
+    sin_th2 = (n1_refr / n2_refr) * sin(th1);
 
-% !!! Onda refletida!!! 
-%
-% H_1Minus = [0; 0; 0];    % A/m
-% E_1Minus = [0; 0; 0];    % V/m
-% N_1Minus = [0; 0; 0];       % W/m^2
-%
-H_1Minus = zeros(size(H_1Plus)); 
-E_1Minus = zeros(size(H_1Plus)); 
+    if abs(sin_th2) <= 1
+        cos2 = sqrt(1 - sin_th2^2);
+    else
+        cos2 = 1i * sqrt(sin_th2^2 - 1); % TIR
+    end
+
+    % TE coef (Hy polarization)
+    denom = eta2*cos1 + eta1*cos2;
+    rho_TE = (eta2*cos1 - eta1*cos2) ./ denom;
+    tH = (2*eta2*cos1) ./ denom;
+
+    % Time-average Poynting components
+    Sz_inc(k) = 0.5 * eta1 * cos1 * abs(H0)^2;
+    Sz_ref(k) = 0.5 * eta1 * cos1 * abs(rho_TE)^2 * abs(H0)^2;
+    Sz_tr(k)  = 0.5 * eta2 * real(cos2) * abs(tH)^2 * abs(H0)^2;
+end
+
+% Plot
+figure('Color','w','Units','normalized','Position',[0.1 0.15 0.6 0.55]);
+hold on; grid on; box on;
+
+plot(theta1_deg, abs(Sz_inc), 'b-', 'LineWidth', 1.8);
+plot(theta1_deg, abs(Sz_ref), 'r--', 'LineWidth', 1.8);
+plot(theta1_deg, abs(Sz_tr),  'g-.', 'LineWidth', 1.8);
+
+xlabel('$\theta_1\ (^\circ)$','Interpreter','latex','FontSize',14);
+ylabel('$|S_z|\ (W/m^2)$','Interpreter','latex','FontSize',14);
+
+title({'\bf Componentes do vetor de Poynting (TE)', ...
+       '$S_z^{(1,+)}$, $S_z^{(1,-)}$, $S_z^{(2,+)}$'}, ...
+       'Interpreter','latex','FontSize',15);
+
+% create legend with LaTeX entries
+lg = legend({'$|S_z^{(1,+)}|$', '$|S_z^{(1,-)}|$', '$|S_z^{(2,+)}|$'}, ...
+    'Interpreter','latex', 'FontSize',14, 'Location','northeast');
+
+% turn AutoUpdate off so new plots won't change the legend
+lg.AutoUpdate = 'off';
 
 
-% !!! Onda transmitida!!! 
-%
-% H_2Plus = [0; 0; 0];    % A/m
-% E_2Plus = [0; 0; 0];    % V/m
-% N_2Plus = [0; 0; 0];       % W/m^2
-%
-H_2Plus = zeros(size(H_1Plus)); 
-E_2Plus = zeros(size(H_1Plus)); 
 
-% Get Eletric from Magnetic.
-n1 = sqrt(u1/e1);
-n2 = sqrt(u2/e2);
+% Brewster angle (TM)
+theta_p_deg = 28;
 
-% SIMPLIFICATION:
-% Everything for x = 0; z = 0;
-%
-% k1 = 2 * pi * f * sqrt(u1*e1);
-% k2 = 2 * pi * f * sqrt(u2*e2);
-% 
-% beta_x1 = k1 * sin(theta1_rad);
-% beta_z1 = k1 * cos(theta1_rad);
+% Points to highlight
+angles_req = [0, theta_p_deg, 40];
 
-Zl = n2 * cos(theta2_rad); % has a complex angle.
-Zz1 = n1 * cos(theta1_rad);
+for i = 1:length(angles_req)
+    th = angles_req(i);
+    [~, idx] = min(abs(theta1_deg - th));
 
-rho0 = (Zl - Zz1) / (Zl + Zz1);
+    % Plot points
+    plot(th, abs(Sz_inc(idx)), 'ko', 'MarkerFaceColor','b', 'MarkerSize',8);
+    plot(th, abs(Sz_ref(idx)), 'ko', 'MarkerFaceColor','r', 'MarkerSize',8);
+    plot(th, abs(Sz_tr(idx)),  'ko', 'MarkerFaceColor','g', 'MarkerSize',8);
 
-% Ex_1Plus = n1 * cos(theta1_rad) * H_1Minus * exp^(-1i*beta_x1*x) * (exp^(-1i*beta_z1*z) + (rho0 * exp^(1i*beta_z1*z)));
-    % Evertyhing for x = 0; z = 0;
-    % Ex_1Plus = n1 * cos(theta1_rad) * H_1Minus * exp^0 * (exp^0 + (rho0 * exp^0));
+    % LaTeX annotation
+    txt = sprintf(['$\\theta_1 = %.3f^{\\circ}$\n' ...
+                   '$|S_z^{(1,+)}| = %.3f$ W/m$^2$\n' ...
+                   '$|S_z^{(1,-)}| = %.3f$ W/m$^2$\n' ...
+                   '$|S_z^{(2,+)}| = %.3f$ W/m$^2$'], ...
+                   theta1_deg(idx), ...
+                   abs(Sz_inc(idx)), ...
+                   abs(Sz_ref(idx)), ...
+                   abs(Sz_tr(idx)));
 
-% Incidente
-E_1Plus(1) = n1 * cos(theta1_rad) * H_y1 * (1 + rho0); % Ex
-E_1Plus(3) = -n1 * sin(theta1_rad) * H_y1 * (1 - rho0); % Ez
+    text(th + 0.8, ...
+         max([abs(Sz_inc(idx)), abs(Sz_ref(idx)), abs(Sz_tr(idx))]) * 0.92, ...
+         txt, ...
+         'Interpreter','latex', ...
+         'FontSize',11, ...
+         'BackgroundColor','w', ...
+         'EdgeColor','k');
+end
 
-N_1Plus = cross(E_1Plus, H_1Plus);     % W/m^2
-
-% Transmitida
-H_2Plus(2) = H_1Plus(2);
-E_2Plus(1) = n2 * cos(theta2_rad) * H_y1 * (1 - rho0); % Ex
-E_2Plus(3) = -n2 * sin(theta2_rad) * H_y1 * (1 - rho0); % Ez
-
-N_2Plus = cross(E_2Plus, H_2Plus);     % W/m^2
-
-% Refletida - Errado.
-H_1Minus(2) = H_1Plus(2);
-E_1Minus(1) = n1 * cos(theta1_rad) * H_y1 * (-rho0); % Ex - Negativo
-E_1Minus(3) = -n1 * sin(theta1_rad) * H_y1 * (-rho0); % Ez
-
-N_1Minus = cross(E_1Minus, H_1Minus);     % W/m^2
-
-% Poynting vectors (instantaneous for real-valued fields; for phasors use 0.5*real(cross(E,conj(H))))
-S_1Plus  = cross(E_1Plus,  H_1Plus);    % incident
-S_1Minus = cross(E_1Minus, H_1Minus);   % reflected
-S_2Plus  = cross(E_2Plus,  H_2Plus);    % transmitted
-
-% Prepare 3D plot
-figure('Color','w','Name','E, H and Poynting Vectors');
-hold on; grid on; axis equal;
-view(38,22);
-xlabel('x (m)'); ylabel('y (m)'); zlabel('z (m)');
-
-% Draw interface plane z = 0
-[xp, yp] = meshgrid(linspace(-0.6,0.6,2), linspace(-0.6,0.6,2));
-zp = zeros(size(xp));
-surf(xp, yp, zp, 'FaceAlpha',0.15, 'EdgeColor','none', 'FaceColor',[0.8 0.8 1]);
-
-% Origin
-orig = [0;0;0];
-
-% Plot vectors with scale factor for visibility
-scale = 1; % adjust if vectors too small/large
-
-quiver3(orig(1), orig(2), orig(3), real(E_1Plus(1))*scale, real(E_1Plus(2))*scale, real(E_1Plus(3))*scale, 'r', 'LineWidth',1.8, 'MaxHeadSize',0.6);
-quiver3(orig(1), orig(2), orig(3), real(H_1Plus(1))*scale, real(H_1Plus(2))*scale, real(H_1Plus(3))*scale, 'm', 'LineWidth',1.8, 'MaxHeadSize',0.6);
-quiver3(orig(1), orig(2), orig(3), real(S_1Plus(1))*scale, real(S_1Plus(2))*scale, real(S_1Plus(3))*scale, 'g', 'LineWidth',2, 'MaxHeadSize',0.8);
-
-quiver3(orig(1), orig(2), orig(3), real(E_1Minus(1))*scale, real(E_1Minus(2))*scale, real(E_1Minus(3))*scale, 'r--', 'LineWidth',1.4, 'MaxHeadSize',0.6);
-quiver3(orig(1), orig(2), orig(3), real(H_1Minus(1))*scale, real(H_1Minus(2))*scale, real(H_1Minus(3))*scale, 'm--', 'LineWidth',1.4, 'MaxHeadSize',0.6);
-quiver3(orig(1), orig(2), orig(3), real(S_1Minus(1))*scale, real(S_1Minus(2))*scale, real(S_1Minus(3))*scale, 'g--', 'LineWidth',1.6, 'MaxHeadSize',0.8);
-
-quiver3(orig(1), orig(2), orig(3), real(E_2Plus(1))*scale, real(E_2Plus(2))*scale, real(E_2Plus(3))*scale, 'c', 'LineWidth',1.8, 'MaxHeadSize',0.6);
-quiver3(orig(1), orig(2), orig(3), real(H_2Plus(1))*scale, real(H_2Plus(2))*scale, real(H_2Plus(3))*scale, 'b', 'LineWidth',1.8, 'MaxHeadSize',0.6);
-quiver3(orig(1), orig(2), orig(3), real(S_2Plus(1))*scale, real(S_2Plus(2))*scale, real(S_2Plus(3))*scale, 'k', 'LineWidth',2, 'MaxHeadSize',0.8);
-
-% Annotations and legend entries with magnitudes
-mE1 = vecnorm(real(E_1Plus).');
-mH1 = vecnorm(real(H_1Plus).');
-mS1 = vecnorm(real(S_1Plus).');
-
-mE1m = vecnorm(real(E_1Minus).');
-mH1m = vecnorm(real(H_1Minus).');
-mS1m = vecnorm(real(S_1Minus).');
-
-mE2 = vecnorm(real(E_2Plus).');
-mH2 = vecnorm(real(H_2Plus).');
-mS2 = vecnorm(real(S_2Plus).');
-
-legend({
-  sprintf('E_inc (|E|=%.3g V/m)', mE1), ...
-  sprintf('H_inc (|H|=%.3g A/m)', mH1), ...
-  sprintf('S_inc (|S|=%.3g W/m^2)', mS1), ...
-  sprintf('E_ref (|E|=%.3g V/m)', mE1m), ...
-  sprintf('H_ref (|H|=%.3g A/m)', mH1m), ...
-  sprintf('S_ref (|S|=%.3g W/m^2)', mS1m), ...
-  % sprintf('E_tr  (|  sprintf('H_tr  (|H|=%.3g A/m)', mH2), ...'
-  sprintf('S_tr  (|S|=%.3g W/m^2)', mS2) }, 'Location','northeastoutside');
-
-title(sprintf('Fields at interface (\\theta_1 = %g°). rho0 = %g%+gi', theta1_deg, real(rho0), imag(rho0)));
-axis([-0.6 0.6 -0.6 0.6 -0.6 0.6]);
-
-% Add small text labels near arrow tips
-txtOffset = 0.02;
-text(real(E_1Plus(1))+txtOffset, real(E_1Plus(2)), real(E_1Plus(3)), 'E_{inc}', 'Color','r');
-text(real(H_1Plus(1))+txtOffset, real(H_1Plus(2)), real(H_1Plus(3)), 'H_{inc}', 'Color','m');
-text(real(S_1Plus(1))+txtOffset, real(S_1Plus(2)), real(S_1Plus(3)), 'S_{inc}', 'Color','g');
-
-text(real(E_1Minus(1))+txtOffset, real(E_1Minus(2)), real(E_1Minus(3)), 'E_{ref}', 'Color','r');
-text(real(H_1Minus(1))+txtOffset, real(H_1Minus(2)), real(H_1Minus(3)), 'H_{ref}', 'Color','m');
-text(real(S_1Minus(1))+txtOffset, real(S_1Minus(2)), real(S_1Minus(3)), 'S_{ref}', 'Color','g');
-
-text(real(E_2Plus(1))+txtOffset, real(E_2Plus(2)), real(E_2Plus(3)), 'E_{tr}', 'Color','c');
-text(real(H_2Plus(1))+txtOffset, real(H_2Plus(2)), real(H_2Plus(3)), 'H_{tr}', 'Color','b');
-text(real(S_2Plus(1))+txtOffset, real(S_2Plus(2)), real(S_2Plus(3)), 'S_{tr}', 'Color','k');
-
-hold off;
+% Print on console
+fprintf('\n--- Numerical Results (LaTeX version) ---\n');
+fprintf('Brewster angle (theta_p) = %.6f°\n\n', theta_p_deg);
+for th = angles_req
+    [~, idx] = min(abs(theta1_deg - th));
+    fprintf(['theta1 = %7.3f°:\n' ...
+             '   |S_inc| = %.3f W/m^2\n' ...
+             '   |S_ref| = %.3f W/m^2\n' ...
+             '   |S_tr | = %.3f W/m^2\n\n'], ...
+             theta1_deg(idx), abs(Sz_inc(idx)), abs(Sz_ref(idx)), abs(Sz_tr(idx)));
+end

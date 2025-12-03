@@ -1,4 +1,4 @@
-function theta2_deg = getTransmittedAngle(theta1_deg, e1, e2)
+function theta2_rad = getTransmittedAngle(theta1_deg, e1, e2)
 %GETTRANSMITTEDANGLE   Computes Snell's transmitted angle, including complex case.
 
 arguments
@@ -17,7 +17,4 @@ else
     theta2_rad = (pi/2) + 1i * acosh(snell); % complex angle (radians)
 end
 
-theta2_deg = real(rad2deg(theta2_rad));         % MATLAB handles complex fine
-
-% Ignores imaginary
 end
